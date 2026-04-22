@@ -115,7 +115,7 @@ h1 { font-size: clamp(2.2rem, 4vw, 4.6rem); line-height: 0.95; max-width: 11ch; 
 
 .workspace {
   display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.8fr);
-  gap: 18px; margin-top: 18px;
+  gap: 18px; margin-top: 18px; align-items: start;
 }
 .main-column, .side-column { display: flex; flex-direction: column; gap: 18px; }
 .step-panel, .summary-card { padding: 22px; }
@@ -124,7 +124,7 @@ h1 { font-size: clamp(2.2rem, 4vw, 4.6rem); line-height: 0.95; max-width: 11ch; 
 }
 
 .import-grid, .panel-grid {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start;
 }
 
 .sub-card { padding: 18px; }
@@ -135,6 +135,8 @@ h1 { font-size: clamp(2.2rem, 4vw, 4.6rem); line-height: 0.95; max-width: 11ch; 
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-lg);
   padding: 14px 16px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .list-card, .history-list, .key-value-list, .module-list, .signal-bars { display: flex; flex-direction: column; gap: 12px; }
 .module-item header, .history-item header, .signal-item header {
@@ -148,8 +150,77 @@ textarea, input {
   padding: 14px 16px; font: inherit;
 }
 textarea { resize: vertical; min-height: 160px; }
-.preview-block { min-height: 460px; white-space: pre-wrap; line-height: 1.66; }
+.preview-block { min-height: 460px; max-height: 720px; overflow: auto; white-space: pre-wrap; line-height: 1.66; }
 .hidden { display: none; }
+
+#importSummary,
+#entryFiles,
+#dependencyList,
+#todoList,
+#gapList,
+#readingOrder,
+#scopeImpact,
+#snapshotList,
+#comparePanel,
+#moduleMap {
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+#entryFiles .list-card,
+#dependencyList .list-card,
+#gapList .list-card,
+#readingOrder .list-card,
+#scopeImpact .list-card,
+#importSummary .kv-item,
+#snapshotList .history-item,
+#moduleMap .module-item {
+  max-height: 112px;
+  overflow: auto;
+}
+
+#todoList .list-card {
+  max-height: 168px;
+  overflow: auto;
+}
+
+#comparePanel {
+  min-height: 180px;
+}
+
+#handoffPreview {
+  tab-size: 2;
+}
+
+#importSummary::-webkit-scrollbar,
+#entryFiles::-webkit-scrollbar,
+#dependencyList::-webkit-scrollbar,
+#todoList::-webkit-scrollbar,
+#gapList::-webkit-scrollbar,
+#readingOrder::-webkit-scrollbar,
+#scopeImpact::-webkit-scrollbar,
+#snapshotList::-webkit-scrollbar,
+#comparePanel::-webkit-scrollbar,
+#moduleMap::-webkit-scrollbar,
+#handoffPreview::-webkit-scrollbar {
+  width: 10px;
+}
+
+#importSummary::-webkit-scrollbar-thumb,
+#entryFiles::-webkit-scrollbar-thumb,
+#dependencyList::-webkit-scrollbar-thumb,
+#todoList::-webkit-scrollbar-thumb,
+#gapList::-webkit-scrollbar-thumb,
+#readingOrder::-webkit-scrollbar-thumb,
+#scopeImpact::-webkit-scrollbar-thumb,
+#snapshotList::-webkit-scrollbar-thumb,
+#comparePanel::-webkit-scrollbar-thumb,
+#moduleMap::-webkit-scrollbar-thumb,
+#handoffPreview::-webkit-scrollbar-thumb {
+  background: rgba(143, 168, 255, 0.28);
+  border-radius: 999px;
+}
 
 .signal-track {
   height: 10px; border-radius: 999px; overflow: hidden;

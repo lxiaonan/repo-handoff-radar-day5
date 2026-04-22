@@ -1,6 +1,7 @@
 const storageKey = "repo-handoff-radar-day5-state";
 const textFileLimit = 420;
 const maxReadBytes = 220000;
+const ignoredDirectoryNames = ["node_modules", ".git", "dist", "build", "coverage", ".next", "vendor", "target", "out", "__pycache__", ".turbo"];
 
 const i18n = {
   zh: {
@@ -65,6 +66,7 @@ const i18n = {
       "真正读取你选择的文件夹内容，而不是只展示假数据。",
       "支持检测 package.json、requirements.txt、pom.xml、Cargo.toml 等配置文件。",
       "扫描 TODO、FIXME、HACK，帮助判断哪里最需要先看。",
+      "默认忽略 node_modules、dist、build 等噪音目录，避免布局和结果被生成文件污染。",
       "支持粘贴变更文件路径，自动生成 scoped handoff。"
     ],
     emptyState: "还没有导入项目。可以载入示例仓库，或者选择一个本地项目文件夹。",
@@ -99,6 +101,7 @@ const i18n = {
       root: "根目录",
       files: "总文件数",
       analyzedText: "已分析文本文件",
+      ignoredNoise: "忽略噪音文件",
       skipped: "跳过文件",
       estimatedTokens: "估算上下文 tokens"
     },
@@ -181,6 +184,7 @@ const i18n = {
       "It reads the folder you choose instead of pretending with empty UI.",
       "It detects package.json, requirements.txt, pom.xml, Cargo.toml, and more.",
       "It scans TODO, FIXME, and HACK markers to show where attention is needed.",
+      "It ignores noisy generated directories such as node_modules, dist, and build by default.",
       "It supports pasted changed-file paths to generate scoped handoff output."
     ],
     emptyState: "No project is imported yet. Load the sample repo or choose a local project folder.",
@@ -215,6 +219,7 @@ const i18n = {
       root: "Root",
       files: "Total files",
       analyzedText: "Text files analyzed",
+      ignoredNoise: "Ignored noisy files",
       skipped: "Skipped files",
       estimatedTokens: "Estimated context tokens"
     },
@@ -351,6 +356,11 @@ function normalizePath(value) {
   return value.replace(/\\/g, "/");
 }
 
+function shouldIgnorePath(path) {
+  const parts = normalizePath(path).split("/");
+  return parts.some((part) => ignoredDirectoryNames.includes(part));
+}
+
 function isTextLike(path) {
   const lower = path.toLowerCase();
   const binaryExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".zip", ".jar", ".woff", ".woff2", ".ttf", ".mp4", ".mov", ".pdf", ".exe", ".dll", ".so", ".bin", ".class"];
@@ -361,8 +371,13 @@ function isTextLike(path) {
 async function filesToDataset(files) {
   const items = [];
   let skipped = 0;
+  let ignored = 0;
   for (const file of Array.from(files)) {
     const path = normalizePath(file.webkitRelativePath || file.name);
+    if (shouldIgnorePath(path)) {
+      ignored += 1;
+      continue;
+    }
     const item = { path, size: file.size };
     if (isTextLike(path) && file.size <= maxReadBytes && items.length < textFileLimit) {
       item.content = await file.text();
@@ -371,7 +386,7 @@ async function filesToDataset(files) {
     }
     items.push(item);
   }
-  return { files: items, skipped, root: deriveRoot(items.map((item) => item.path)) };
+  return { files: items, skipped, ignored, root: deriveRoot(items.map((item) => item.path)) };
 }
 
 function deriveRoot(paths) {
@@ -443,13 +458,18 @@ function detectEntries(dataset) {
   return candidates.slice(0, 12);
 }
 
+function shortenSnippet(value, maxLength = 180) {
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > maxLength ? `${compact.slice(0, maxLength - 1)}…` : compact;
+}
+
 function scanTodos(dataset) {
   const todos = [];
   dataset.files.forEach((file) => {
     if (!file.content) return;
     file.content.split(/\r?\n/).forEach((line, index) => {
       if (/(TODO|FIXME|HACK|BUG)/i.test(line) && todos.length < 24) {
-        todos.push({ path: file.path, line: index + 1, text: line.trim() });
+        todos.push({ path: file.path, line: index + 1, text: shortenSnippet(line) });
       }
     });
   });
@@ -508,6 +528,7 @@ function analyzeDataset(dataset) {
     root: dataset.root,
     fileCount: dataset.files.length,
     analyzedText,
+    ignored: dataset.ignored || 0,
     skipped: dataset.skipped,
     estimatedTokens,
     modules,
@@ -610,6 +631,7 @@ function renderMetrics() {
     [t("factKeys").root, analysis.root],
     [t("factKeys").files, analysis.fileCount],
     [t("factKeys").analyzedText, analysis.analyzedText],
+    [t("factKeys").ignoredNoise, analysis.ignored],
     [t("factKeys").skipped, analysis.skipped],
     [t("factKeys").estimatedTokens, analysis.estimatedTokens],
   ];
@@ -764,7 +786,7 @@ async function loadDataset(dataset) {
 function hydrateFromUrl() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("demo") === "sample") {
-    const dataset = { files: sampleRepo.map((item) => ({ ...item, size: item.content.length })), skipped: 0, root: "insight-board" };
+    const dataset = { files: sampleRepo.map((item) => ({ ...item, size: item.content.length })), skipped: 0, ignored: 0, root: "insight-board" };
     state.dataset = dataset;
     state.analysis = analyzeDataset(dataset);
     state.scopeInput = "src/App.tsx\nsrc/components/ChartPanel.tsx\nbackend/app/routes/summary.py";
@@ -790,7 +812,7 @@ function attachListeners() {
   });
 
   els.sampleBtn.addEventListener("click", async () => {
-    await loadDataset({ files: sampleRepo.map((item) => ({ ...item, size: item.content.length })), skipped: 0, root: "insight-board" });
+    await loadDataset({ files: sampleRepo.map((item) => ({ ...item, size: item.content.length })), skipped: 0, ignored: 0, root: "insight-board" });
   });
 
   els.clearBtn.addEventListener("click", () => {
