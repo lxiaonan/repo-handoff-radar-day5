@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Repo Handoff Radar</title>
+    <meta
+      name="description"
+      content="A bilingual local-first repo analysis studio that imports a project folder, detects stack and risks, scans TODOs, and exports a real handoff pack."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="noise"></div>
+    <div class="page-shell">
+      <header class="hero card">
+        <div class="hero-copy">
+          <p class="eyebrow" data-i18n="eyebrow">Repo Handoff Radar</p>
+          <h1 data-i18n="heroTitle">导入代码库，直接生成真实可用的交接雷达</h1>
+          <p class="hero-text" data-i18n="heroText">
+            这个工具会在浏览器里真实读取你选择的项目文件夹，分析技术栈、入口文件、依赖、TODO、文档缺口和变更范围，再导出交接包。
+          </p>
+          <div class="hero-chips">
+            <span class="pill" data-i18n="chipOne">本地文件夹导入</span>
+            <span class="pill" data-i18n="chipTwo">技术栈与风险扫描</span>
+            <span class="pill" data-i18n="chipThree">交接包导出</span>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <button id="sampleBtn" class="button accent" data-i18n="sampleBtn">载入示例仓库</button>
+          <button id="clearBtn" class="button ghost" data-i18n="clearBtn">清空数据</button>
+          <button id="langToggle" class="button ghost">EN</button>
+        </div>
+      </header>
+
+      <section class="topbar">
+        <div class="metric card">
+          <span class="metric-label" data-i18n="filesLabel">已分析文件</span>
+          <strong id="filesValue">0</strong>
+          <small id="filesHint" data-i18n="filesHint">等待导入项目</small>
+        </div>
+        <div class="metric card">
+          <span class="metric-label" data-i18n="stackLabel">识别技术信号</span>
+          <strong id="stackValue">0</strong>
+          <small id="stackHint" data-i18n="stackHint">检测框架与配置</small>
+        </div>
+        <div class="metric card">
+          <span class="metric-label" data-i18n="riskLabel">交接风险项</span>
+          <strong id="riskValue">0</strong>
+          <small id="riskHint" data-i18n="riskHint">找出文档和流程缺口</small>
+        </div>
+        <div class="metric card">
+          <span class="metric-label" data-i18n="historyLabel">历史快照</span>
+          <strong id="historyValue">0</strong>
+          <small id="historyHint" data-i18n="historyHint">本地持久化保存</small>
+        </div>
+      </section>
+
+      <nav id="stepper" class="stepper card"></nav>
+
+      <main class="workspace">
+        <section class="main-column">
+          <article class="card step-panel" data-step-panel="0">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker" data-i18n="importKicker">Step 1</p>
+                <h2 data-i18n="importTitle">导入代码库</h2>
+              </div>
+              <label class="button accent upload-trigger" for="folderInput" data-i18n="uploadBtn">选择项目文件夹</label>
+            </div>
+            <input id="folderInput" type="file" webkitdirectory directory multiple hidden />
+            <div class="import-grid">
+              <section class="sub-card upload-card">
+                <h3 data-i18n="uploadTitle">真实本地分析</h3>
+                <p data-i18n="uploadText">
+                  选择本地项目文件夹后，浏览器会直接读取文件名与可解析文本文件，不会上传到服务器。
+                </p>
+                <ul class="bullet-list" id="importFacts"></ul>
+              </section>
+              <section class="sub-card">
+                <h3 data-i18n="importSummaryTitle">当前导入状态</h3>
+                <div id="importSummary" class="key-value-list"></div>
+              </section>
+            </div>
+            <div class="action-row">
+              <button id="toAnalysisBtn" class="button accent" data-i18n="toAnalysis">查看分析结果</button>
+            </div>
+          </article>
+
+          <article class="card step-panel hidden" data-step-panel="1">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker" data-i18n="analysisKicker">Step 2</p>
+                <h2 data-i18n="analysisTitle">结构、技术栈与风险分析</h2>
+              </div>
+              <button id="toScopeBtn" class="button accent" data-i18n="toScope">进入变更交接</button>
+            </div>
+
+            <div class="panel-grid">
+              <section class="sub-card">
+                <h3 data-i18n="stackSignalsTitle">技术栈信号</h3>
+                <div id="stackSignals" class="chip-grid"></div>
+              </section>
+              <section class="sub-card">
+                <h3 data-i18n="entryFilesTitle">关键入口</h3>
+                <div id="entryFiles" class="list-card"></div>
+              </section>
+            </div>
+
+            <div class="panel-grid">
+              <section class="sub-card">
+                <h3 data-i18n="moduleMapTitle">模块地图</h3>
+                <div id="moduleMap" class="module-list"></div>
+              </section>
+              <section class="sub-card">
+                <h3 data-i18n="dependencyTitle">依赖与配置</h3>
+                <div id="dependencyList" class="list-card"></div>
+              </section>
+            </div>
+
+            <div class="panel-grid">
+              <section class="sub-card">
+                <h3 data-i18n="todoTitle">TODO / FIXME 热点</h3>
+                <div id="todoList" class="list-card"></div>
+              </section>
+              <section class="sub-card">
+                <h3 data-i18n="gapTitle">文档与流程缺口</h3>
+                <div id="gapList" class="list-card"></div>
+              </section>
+            </div>
+          </article>
+
+          <article class="card step-panel hidden" data-step-panel="2">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker" data-i18n="scopeKicker">Step 3</p>
+                <h2 data-i18n="scopeTitle">变更范围与交接包</h2>
+              </div>
+              <button id="toExportBtn" class="button accent" data-i18n="toExport">进入导出</button>
+            </div>
+
+            <div class="panel-grid">
+              <section class="sub-card">
+                <h3 data-i18n="scopeInputTitle">粘贴变更文件路径</h3>
+                <textarea id="scopeInput" rows="10" data-placeholder-zh="每行一个路径，例如 src/app.tsx" data-placeholder-en="One path per line, for example src/app.tsx"></textarea>
+                <div class="action-row left">
+                  <button id="refreshScopeBtn" class="button ghost" data-i18n="refreshScope">刷新范围分析</button>
+                </div>
+              </section>
+              <section class="sub-card">
+                <h3 data-i18n="scopeImpactTitle">影响范围</h3>
+                <div id="scopeImpact" class="list-card"></div>
+              </section>
+            </div>
+
+            <section class="sub-card">
+              <h3 data-i18n="handoffTitle">交接包预览</h3>
+              <pre id="handoffPreview" class="preview-block"></pre>
+            </section>
+          </article>
+
+          <article class="card step-panel hidden" data-step-panel="3">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker" data-i18n="exportKicker">Step 4</p>
+                <h2 data-i18n="exportTitle">快照、对比与导出</h2>
+              </div>
+              <div class="action-row">
+                <button id="saveSnapshotBtn" class="button accent" data-i18n="saveSnapshot">保存快照</button>
+                <button id="copyMarkdownBtn" class="button ghost" data-i18n="copyMarkdown">复制 Markdown</button>
+              </div>
+            </div>
+
+            <div class="action-row left">
+              <button id="exportMarkdownBtn" class="button ghost" data-i18n="exportMarkdown">导出 Markdown</button>
+              <button id="exportJsonBtn" class="button ghost" data-i18n="exportJson">导出 JSON</button>
+              <button id="importJsonBtn" class="button ghost" data-i18n="importJson">导入 JSON</button>
+              <input id="importJsonInput" type="file" accept=".json" hidden />
+            </div>
+
+            <div class="panel-grid">
+              <section class="sub-card">
+                <h3 data-i18n="snapshotTitle">已保存快照</h3>
+                <div id="snapshotList" class="history-list"></div>
+              </section>
+              <section class="sub-card">
+                <h3 data-i18n="compareTitle">快照对比</h3>
+                <div id="comparePanel" class="compare-card"></div>
+              </section>
+            </div>
+          </article>
+        </section>
+
+        <aside class="side-column">
+          <section class="card summary-card">
+            <h3 data-i18n="coverageTitle">代码库覆盖概况</h3>
+            <div id="coverageBars" class="signal-bars"></div>
+          </section>
+          <section class="card summary-card">
+            <h3 data-i18n="insightTitle">即时建议</h3>
+            <ul id="insightList" class="bullet-list"></ul>
+          </section>
+          <section class="card summary-card">
+            <h3 data-i18n="readingOrderTitle">建议阅读顺序</h3>
+            <div id="readingOrder" class="list-card"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

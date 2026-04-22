@@ -1,0 +1,30 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 1080
+  },
+  "initialWaitMs": 1200,
+  "steps": [
+    {
+      "waitMs": 700
+    },
+    {
+      "click": {
+        "selector": "#toScopeBtn"
+      },
+      "waitMs": 900
+    },
+    {
+      "click": {
+        "selector": "#toExportBtn"
+      },
+      "waitMs": 900
+    },
+    {
+      "click": {
+        "selector": "#langToggle"
+      },
+      "waitMs": 900
+    }
+  ]
+}
