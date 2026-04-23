@@ -37,12 +37,15 @@ const i18n = {
     dependencyTitle: "依赖与配置",
     todoTitle: "TODO / FIXME 热点",
     gapTitle: "文档与流程缺口",
+    riskHotspotTitle: "模块风险热点",
+    pathSearchTitle: "文件路径搜索",
     scopeKicker: "Step 3",
     scopeTitle: "变更范围与交接包",
     toExport: "进入导出",
     scopeInputTitle: "粘贴变更文件路径",
     refreshScope: "刷新范围分析",
     scopeImpactTitle: "影响范围",
+    scopeChecklistTitle: "Scoped checklist",
     handoffTitle: "交接包预览",
     exportKicker: "Step 4",
     exportTitle: "快照、对比与导出",
@@ -78,6 +81,8 @@ const i18n = {
     noEntries: "没有识别到典型入口文件。",
     noGaps: "未发现明显文档缺口，说明这个仓库相对完整。",
     noScope: "还没有输入变更路径，交接包会基于整个仓库。",
+    noHotspots: "当前还没有明显热点模块。",
+    noPathResults: "没有匹配到文件路径。",
     noSnapshots: "还没有保存快照。",
     copySuccess: "Markdown 已复制。",
     saveSuccess: "快照已保存。",
@@ -117,6 +122,7 @@ const i18n = {
       entries: "建议先看的入口",
       modules: "模块地图",
       scope: "本次变更范围",
+      checklist: "Scoped checklist",
       todos: "高优先 TODO 热点",
       gaps: "文档与流程缺口",
       next: "建议交接问题"
@@ -155,12 +161,15 @@ const i18n = {
     dependencyTitle: "Dependencies and config",
     todoTitle: "TODO / FIXME hotspots",
     gapTitle: "Documentation and workflow gaps",
+    riskHotspotTitle: "Module risk hotspots",
+    pathSearchTitle: "File path search",
     scopeKicker: "Step 3",
     scopeTitle: "Change scope and handoff pack",
     toExport: "Go to export",
     scopeInputTitle: "Paste changed file paths",
     refreshScope: "Refresh scope analysis",
     scopeImpactTitle: "Impact scope",
+    scopeChecklistTitle: "Scoped checklist",
     handoffTitle: "Handoff preview",
     exportKicker: "Step 4",
     exportTitle: "Snapshots, compare, and export",
@@ -196,6 +205,8 @@ const i18n = {
     noEntries: "No typical entry files were detected.",
     noGaps: "No obvious documentation gaps were found, so the repo looks relatively complete.",
     noScope: "No changed paths yet, so the handoff pack covers the whole repo.",
+    noHotspots: "No clear hotspot modules were detected yet.",
+    noPathResults: "No file paths matched the search.",
     noSnapshots: "No snapshots saved yet.",
     copySuccess: "Markdown copied.",
     saveSuccess: "Snapshot saved.",
@@ -235,6 +246,7 @@ const i18n = {
       entries: "Recommended entry files",
       modules: "Module map",
       scope: "Changed scope",
+      checklist: "Scoped checklist",
       todos: "High-priority TODO hotspots",
       gaps: "Documentation and workflow gaps",
       next: "Recommended handoff questions"
@@ -291,8 +303,12 @@ const els = {
   dependencyList: document.querySelector("#dependencyList"),
   todoList: document.querySelector("#todoList"),
   gapList: document.querySelector("#gapList"),
+  riskHotspots: document.querySelector("#riskHotspots"),
+  pathSearchInput: document.querySelector("#pathSearchInput"),
+  pathSearchResults: document.querySelector("#pathSearchResults"),
   scopeInput: document.querySelector("#scopeInput"),
   scopeImpact: document.querySelector("#scopeImpact"),
+  scopeChecklist: document.querySelector("#scopeChecklist"),
   handoffPreview: document.querySelector("#handoffPreview"),
   coverageBars: document.querySelector("#coverageBars"),
   insightList: document.querySelector("#insightList"),
@@ -336,6 +352,7 @@ function updateI18n() {
   document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); });
   els.langToggle.textContent = state.lang === "zh" ? "EN" : "中文";
   els.scopeInput.placeholder = els.scopeInput.dataset[`placeholder${state.lang === "zh" ? "Zh" : "En"}`];
+  els.pathSearchInput.placeholder = els.pathSearchInput.dataset[`placeholder${state.lang === "zh" ? "Zh" : "En"}`];
 }
 
 function renderStepper() {
@@ -495,6 +512,37 @@ function buildModules(dataset) {
     }));
 }
 
+function buildModuleHotspots(dataset, todos) {
+  const byDir = new Map();
+  dataset.files.forEach((file) => {
+    const dir = topDir(file.path);
+    if (!byDir.has(dir)) {
+      byDir.set(dir, { dir, files: 0, todos: 0, configs: 0 });
+    }
+    const item = byDir.get(dir);
+    item.files += 1;
+    if (/package\.json|requirements\.txt|pom\.xml|pyproject\.toml|cargo\.toml|go\.mod/i.test(file.path)) {
+      item.configs += 1;
+    }
+  });
+
+  todos.forEach((todo) => {
+    const dir = topDir(todo.path);
+    if (!byDir.has(dir)) {
+      byDir.set(dir, { dir, files: 0, todos: 0, configs: 0 });
+    }
+    byDir.get(dir).todos += 1;
+  });
+
+  return Array.from(byDir.values())
+    .map((item) => ({
+      ...item,
+      risk: Math.min(99, item.todos * 18 + item.configs * 8 + Math.min(24, item.files))
+    }))
+    .sort((a, b) => b.risk - a.risk)
+    .slice(0, 8);
+}
+
 function detectGaps(dataset) {
   const paths = dataset.files.map((file) => file.path.toLowerCase());
   const gaps = [];
@@ -518,6 +566,7 @@ function analyzeDataset(dataset) {
   const entries = detectEntries(dataset);
   const todos = scanTodos(dataset);
   const gaps = detectGaps(dataset);
+  const hotspots = buildModuleHotspots(dataset, todos);
   const estimatedTokens = estimateTokens(charCount);
   const coverage = {
     docCoverage: Math.max(0, 100 - gaps.filter((item) => item.toLowerCase().includes("readme") || item.toLowerCase().includes("agents")).length * 35),
@@ -537,6 +586,8 @@ function analyzeDataset(dataset) {
     entries,
     todos,
     gaps,
+    hotspots,
+    filePaths: dataset.files.map((file) => file.path),
     coverage,
     readingOrder: [...entries.slice(0, 4), ...modules.slice(0, 4).map((item) => item.dir)].filter(Boolean)
   };
@@ -548,22 +599,38 @@ function parseScopeInput(text) {
 
 function deriveScopeReport(analysis, scopeInput) {
   const changedPaths = parseScopeInput(scopeInput);
+  const checklist = [];
   if (!changedPaths.length) {
     return {
       changedPaths,
       impactedModules: [],
-      summary: t("noScope")
+      summary: t("noScope"),
+      checklist: [
+        state.lang === "zh" ? "没有限定变更范围时，先从入口文件和部署配置开始看。" : "Without a narrowed scope, start with entry files and deployment config.",
+        state.lang === "zh" ? "确认 README、agents.md 和测试说明是否与当前仓库一致。" : "Check whether README, agents.md, and test notes still match the repo."
+      ]
     };
   }
   const impactedModules = Array.from(new Set(changedPaths.map((path) => topDir(path))));
   const directEntries = analysis.entries.filter((entry) => changedPaths.some((path) => entry.includes(path) || path.includes(entry)));
   const todoHits = analysis.todos.filter((todo) => changedPaths.some((path) => todo.path.includes(path) || path.includes(todo.path)));
+  if (directEntries.length) {
+    checklist.push(state.lang === "zh" ? "优先阅读受影响入口文件，确认调用链和初始化逻辑。" : "Read the impacted entry files first to confirm boot flow and call chains.");
+  }
+  if (todoHits.length) {
+    checklist.push(state.lang === "zh" ? "检查变更范围内已有 TODO / FIXME，避免踩历史坑。" : "Inspect existing TODO / FIXME items inside the scope before changing behavior.");
+  }
+  if (impactedModules.length > 1) {
+    checklist.push(state.lang === "zh" ? "这次改动跨多个模块，交接里要明确责任边界和联动点。" : "This change crosses modules, so the handoff should call out ownership boundaries and touchpoints.");
+  }
+  checklist.push(state.lang === "zh" ? "确认是否需要同步更新 README、agents.md 或部署脚本。" : "Confirm whether README, agents.md, or deployment scripts also need updates.");
   return {
     changedPaths,
     impactedModules,
     directEntries,
     todoHits,
-    summary: `${changedPaths.length} paths / ${impactedModules.length} modules`
+    summary: `${changedPaths.length} paths / ${impactedModules.length} modules`,
+    checklist
   };
 }
 
@@ -574,6 +641,7 @@ function buildHandoffMarkdown(analysis, scopeReport) {
   const gapLines = (analysis.gaps.length ? analysis.gaps.map((gap) => t("gapText")[gap]) : [t("noGaps")]).map((gap) => `- ${gap}`).join("\n");
   const moduleLines = analysis.modules.slice(0, 8).map((module) => `- ${module.dir}: ${module.files} files (${module.exts.join(", ")})`).join("\n");
   const entryLines = (analysis.entries.length ? analysis.entries : [t("noEntries")]).map((entry) => `- ${entry}`).join("\n");
+  const checklistLines = (scopeReport.checklist?.length ? scopeReport.checklist : [t("noScope")]).map((item) => `- ${item}`).join("\n");
   const questions = [
     state.lang === "zh" ? "- 哪些目录是本次改动的真正责任边界？" : "- Which directories define the real ownership boundary for this change?",
     state.lang === "zh" ? "- 是否存在需要同步更新的 README、agents.md 或部署脚本？" : "- Are README, agents.md, or deployment scripts also affected?",
@@ -599,6 +667,9 @@ ${moduleLines}
 
 ## ${sections.scope}
 ${scopeLines}
+
+## ${sections.checklist}
+${checklistLines}
 
 ## ${sections.todos}
 ${todoLines}
@@ -647,6 +718,8 @@ function renderAnalysis() {
     els.dependencyList.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
     els.todoList.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
     els.gapList.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
+    els.riskHotspots.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
+    els.pathSearchResults.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
     els.readingOrder.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
     return;
   }
@@ -660,7 +733,20 @@ function renderAnalysis() {
   els.dependencyList.innerHTML = (analysis.deps.length ? analysis.deps : [t("noDeps")]).map((item) => `<div class="list-card">${item}</div>`).join("");
   els.todoList.innerHTML = (analysis.todos.length ? analysis.todos.slice(0, 10).map((todo) => `${todo.path}:${todo.line} ${todo.text}`) : [t("noTodos")]).map((item) => `<div class="list-card">${item}</div>`).join("");
   els.gapList.innerHTML = (analysis.gaps.length ? analysis.gaps.map((item) => t("gapText")[item]) : [t("noGaps")]).map((item) => `<div class="list-card">${item}</div>`).join("");
+  els.riskHotspots.innerHTML = (analysis.hotspots.length ? analysis.hotspots.map((item) => `${item.dir} · risk ${item.risk}% · ${item.todos} TODOs · ${item.files} files`) : [t("noHotspots")]).map((item) => `<div class="list-card">${item}</div>`).join("");
+  renderPathSearch();
   els.readingOrder.innerHTML = analysis.readingOrder.map((item, index) => `<div class="list-card">${index + 1}. ${item}</div>`).join("");
+}
+
+function renderPathSearch() {
+  const analysis = state.analysis;
+  if (!analysis) {
+    els.pathSearchResults.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
+    return;
+  }
+  const query = els.pathSearchInput.value.trim().toLowerCase();
+  const matches = (query ? analysis.filePaths.filter((path) => path.toLowerCase().includes(query)) : analysis.filePaths.slice(0, 8)).slice(0, 12);
+  els.pathSearchResults.innerHTML = (matches.length ? matches : [t("noPathResults")]).map((item) => `<div class="list-card">${item}</div>`).join("");
 }
 
 function renderCoverage() {
@@ -681,6 +767,7 @@ function renderScope() {
   els.scopeInput.value = state.scopeInput;
   if (!analysis) {
     els.scopeImpact.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
+    els.scopeChecklist.innerHTML = `<div class="list-card">${t("emptyState")}</div>`;
     els.handoffPreview.textContent = t("emptyState");
     return;
   }
@@ -691,6 +778,7 @@ function renderScope() {
     ...(scopeReport.directEntries?.length ? scopeReport.directEntries.map((item) => `${state.lang === "zh" ? "入口" : "Entry"}: ${item}`) : [])
   ];
   els.scopeImpact.innerHTML = impactLines.map((item) => `<div class="list-card">${item}</div>`).join("");
+  els.scopeChecklist.innerHTML = (scopeReport.checklist?.length ? scopeReport.checklist : [t("noScope")]).map((item) => `<div class="list-card">${item}</div>`).join("");
   els.handoffPreview.textContent = buildHandoffMarkdown(analysis, scopeReport);
 }
 
@@ -835,6 +923,9 @@ function attachListeners() {
     state.scopeInput = event.target.value;
     saveState();
     renderScope();
+  });
+  els.pathSearchInput.addEventListener("input", () => {
+    renderPathSearch();
   });
   els.refreshScopeBtn.addEventListener("click", () => renderScope());
 
